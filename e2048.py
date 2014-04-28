@@ -123,32 +123,70 @@ def _linear_to_array(positions_lineal):
     return positions_arr
 
 @requires_array
-def _move_left(arr):
-    pass
+def _only_move_left(arr):
+    new_arr = np.copy(arr)
+    for row in new_arr:
+        if row.any():
+            counter = 0
+            while counter < 3 and row[counter:].any():
+                while row[counter] == 0:
+                    row[counter:3] = row[counter + 1:4]
+                    row[3] = 0
+                counter += 1
+            
+            counter = 0
+
+            while counter < 3:
+                if row[counter] == row[counter + 1]:
+                    row[counter] *= 2
+                    row[counter + 1: 3] = row[counter + 2:]
+                    row[3] = 0
+                counter += 1
+
+    return new_arr
 
 @requires_array
-def _can_move_left(arr, direction):
-    pass
+def _only_move(arr, direction):
 
-@requires_array
-def can_move(arr, direction):
-    # TODO
+    # Select movement operation before and after moving left
     if direction == Directions.left:
-        target = arr
+        return _only_move_left( arr )
+
     elif direction == Directions.right:
-        target = arr
+        rotated_arr = np.rot90(arr, k = 2)
+        moved_arr = _only_move_left(rotated_arr)
+        return np.rot90(moved_arr, k = 2)
+
     elif direction == Directions.up:
-        target = arr
+        rotated_arr = np.rot90(arr, k = 1)
+        print "Original"
+        print arr
+        rotated_moved_arr = _only_move_left(rotated_arr)
+        moved_arr = np.rot90(rotated_moved_arr, k = 3)
+        print moved_arr
+        return moved_arr
+    
+    elif direction == Directions.down:
+        rotated_arr = np.rot90(arr, k = 3)
+        moved_arr = _only_move_left(rotated_arr)
+        return np.rot90(moved_arr, k = 1)
     else:
-        target = arr
+        raise Exception("Direction expected. Got: %s" % direction)
+
+@requires_array
+def can_move_to(arr, direction):
+    new_arr = _only_move(arr, direction)
+    original_value = build_value(arr)
+    new_value = build_value(new_arr)
+    return new_value != original_value
 
 @requires_array
 def can_move(arr):
     """ Can move in any diretion? True / False """
-    return ( can_move(arr, Directions.left) or 
-             can_move(arr, Directions.right) or 
-             can_move(arr, Directions.up) or 
-             can_move(arr, Directions.down) )
+    return ( can_move_to(arr, Directions.left) or 
+             can_move_to(arr, Directions.right) or 
+             can_move_to(arr, Directions.up) or 
+             can_move_to(arr, Directions.down) )
 
 def only_move(value, direction):
     pass
@@ -161,12 +199,26 @@ class Board(object):
         self._value = np.int64(value)
         self.arr   = build_array(value)
 
+    def _only_move(self, direction):
+        new_arr = _only_move(self.arr, direction)
+        return Board.fromarray(new_arr)
+
+    def can_move(self, direction = None):
+        if direction is None:
+            return can_move(self.arr)
+        else:
+            return can_move_to(self.arr, direction)
+
     def copy(self):
         return Board(self._value)
 
     @property
     def value(self):
         return self._value
+
+    @staticmethod
+    def fromarray(arr):
+        return Board(build_value(arr))
 
     def __eq__(self, other):
         return isinstance(other, Board) and other.value == self.value
@@ -180,4 +232,6 @@ class Board(object):
     def __str__(self):
         return board_print(self.value, output = None)
 
+    def pretty_print(self, *args, **kwargs):
+        return board_print(self.value, output = None, *args, **kwargs)
 

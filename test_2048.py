@@ -69,6 +69,130 @@ def test_find_holes():
            12,     13,   14,  15]
     assert expected_positions == list(holes)
 
+def test_only_move():
+
+    initial_data = [
+        [ 0, 0, 0, 0 ],
+        [ 2, 2, 4, 8 ],
+        [ 0, 0, 2, 2 ],
+        [ 2, 2, 2, 2 ]
+    ]
+
+    expected_down = np.array([
+        [ 0, 0, 0, 0 ],
+        [ 0, 0, 0, 0 ],
+        [ 0, 0, 4, 8 ],
+        [ 4, 4, 4, 4 ]
+    ])
+
+    yield check_only_move, initial_data, expected_down, e2048.Directions.down
+
+    expected_up = np.array([
+        [ 4, 4, 4, 8 ],
+        [ 0, 0, 4, 4 ],
+        [ 0, 0, 0, 0 ],
+        [ 0, 0, 0, 0 ]
+    ])
+
+    yield check_only_move, initial_data, expected_up, e2048.Directions.up
+
+    expected_right = np.array([
+        [ 0, 0, 0, 0 ],
+        [ 0, 4, 4, 8 ],
+        [ 0, 0, 0, 4 ],
+        [ 0, 0, 4, 4 ]
+    ])
+
+    yield check_only_move, initial_data, expected_right, e2048.Directions.right
+
+    expected_left = np.array([
+        [ 0, 0, 0, 0 ],
+        [ 4, 4, 8, 0 ],
+        [ 4, 0, 0, 0 ],
+        [ 4, 4, 0, 0 ]
+    ])
+
+    yield check_only_move, initial_data, expected_left, e2048.Directions.left
+
+def check_only_move(initial_data, expected, direction):
+
+    arr = np.array(initial_data)
+    board1 = e2048.Board.fromarray(arr)
+    board2 = e2048.Board.fromarray(np.array(initial_data))
+
+    moved = e2048._only_move(arr, direction)
+
+    assert board1 == board2, "A new array is built"
+
+    expected_board = e2048.Board.fromarray(expected)
+    resulting_board = e2048.Board.fromarray(moved)
+
+    assert expected_board == resulting_board
+
+def test_can_move():
+
+    # Test individuals
+    no = [
+        [ 2, 2, 2, 2 ],
+        [ 0, 0, 0, 0 ],
+        [ 0, 0, 0, 0 ],
+        [ 0, 0, 0, 0 ]
+    ]
+
+    yield check_can_move, no, e2048.Directions.up
+
+    no = [
+        [ 0, 0, 0, 0 ],
+        [ 0, 0, 0, 0 ],
+        [ 0, 0, 0, 0 ],
+        [ 2, 2, 2, 2 ]
+    ]
+
+    yield check_can_move, no, e2048.Directions.down
+
+    no = [
+        [ 2, 0, 0, 0 ],
+        [ 2, 0, 0, 0 ],
+        [ 2, 0, 0, 0 ],
+        [ 2, 0, 0, 0 ]
+    ]
+
+    yield check_can_move, no, e2048.Directions.left
+
+    no = [
+        [ 0, 0, 0, 2 ],
+        [ 0, 0, 0, 2 ],
+        [ 0, 0, 0, 2 ],
+        [ 0, 0, 0, 2 ]
+    ]
+
+    yield check_can_move, no, e2048.Directions.right
+
+
+
+    # Test general
+    no = [
+        [ 2, 4, 6, 8 ],
+        [ 8, 6, 4, 2 ],
+        [ 2, 4, 6, 8 ],
+        [ 8, 6, 4, 2 ]
+    ]
+
+    assert not e2048.can_move(np.array(no))
+
+
+def check_can_move(no, direction):
+    yes = np.array([
+        [ 0, 0, 0, 0 ],
+        [ 2, 2, 4, 8 ],
+        [ 0, 0, 2, 2 ],
+        [ 2, 2, 2, 2 ]
+    ])
+    
+    assert e2048.can_move_to(yes, direction)
+
+    assert not e2048.can_move_to(np.array(no), direction)
+
 def test_basic_class():
     # Constructor
     board = e2048.Board(64)
