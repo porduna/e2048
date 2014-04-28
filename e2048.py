@@ -82,6 +82,9 @@ else:
     def requires_value(func):
         return func
 
+    def requires_array(func):
+        return func
+
 
 @requires_value
 def board_print(value, output = sys.stdout, before = '', numbers = False, blank = '_'):
@@ -188,13 +191,13 @@ def can_move(arr):
              can_move_to(arr, Directions.up) or 
              can_move_to(arr, Directions.down) )
 
-def only_move(value, direction):
-    pass
-
 def move_random(value, direction):
     pass
 
 class Board(object):
+
+    """ Object oriented version of the functions above """
+
     def __init__(self, value = 0):
         self._value = np.int64(value)
         self.arr   = build_array(value)
