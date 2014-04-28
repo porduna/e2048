@@ -1,4 +1,5 @@
 import sys
+import random
 import functools
 import numpy as np
 
@@ -18,6 +19,14 @@ and the possibilities of each happening, as well as debugging tools (e.g.,
 printing it). For efficiency purposes (not requiring to create an object), all
 its methods are provided as functions.
 """
+
+###########################################################################
+#
+#
+#                          Core concepts
+# 
+# 
+
 
 LINE_POSITIONS = range(16)
 
@@ -109,21 +118,15 @@ def board_print(value, output = sys.stdout, before = '', numbers = False, blank 
         print >> output, output_value
     return output_value
 
-@requires_array
-def _find_holes(arr, linear = False):
-    positions_lineal = np.where(arr.reshape(16) == 0)[0]
-    if linear:
-        return positions_lineal
 
-    return _linear_to_array(positions_lineal)
 
-def _linear_to_array(positions_lineal):
-    positions_arr = []
-    for position_lineal in positions_lineal:
-        row = position_lineal / 4
-        col = position_lineal % 4
-        positions_arr.append((row, col))
-    return positions_arr
+###############################################################################################
+# 
+# 
+#        Simple movement methods
+# 
+# 
+
 
 @requires_array
 def _only_move_left(arr):
@@ -184,6 +187,15 @@ def can_move_to(arr, direction):
     return new_value != original_value
 
 @requires_array
+def potential_directions(arr):
+    """ List of available directions to move """
+    directions = []
+    for direction in Directions.DIRECTIONS:
+        if can_move_to(arr, direction):
+            directions.append(direction)
+    return directions
+
+@requires_array
 def can_move(arr):
     """ Can move in any diretion? True / False """
     return ( can_move_to(arr, Directions.left) or 
@@ -191,8 +203,49 @@ def can_move(arr):
              can_move_to(arr, Directions.up) or 
              can_move_to(arr, Directions.down) )
 
-def move_random(value, direction):
-    pass
+
+##################################################################
+# 
+# 
+#                 Gap filling methods
+# 
+
+@requires_array
+def _find_holes(arr, linear = False):
+    positions_lineal = np.where(arr.reshape(16) == 0)[0]
+    if linear:
+        return positions_lineal
+
+    return _linear_to_array(positions_lineal)
+
+def _linear_to_array(positions_lineal):
+    positions_arr = []
+    for position_lineal in positions_lineal:
+        row = position_lineal / 4
+        col = position_lineal % 4
+        positions_arr.append((row, col))
+    return positions_arr
+
+@requires_array
+def move_random(arr, direction):
+    moved_arr = _only_move(arr, direction)
+    positions_lineal = _find_holes(moved_arr, linear = True)
+    if len(positions_lineal) == 0:
+        raise Exception("Couldn't move there")
+
+    new_position = np.random.choice(positions_lineal)
+
+    new_value = 1 if random.random() < 0.9 else 2
+    
+    moved_arr[new_position / 4, new_position % 4] = new_value
+    return moved_arr
+
+###############################################################################
+# 
+# 
+#                 Board object
+# 
+# 
 
 class Board(object):
 
@@ -211,6 +264,13 @@ class Board(object):
             return can_move(self.arr)
         else:
             return can_move_to(self.arr, direction)
+
+    def potential_directions(self):
+        return potential_directions(self.arr)
+
+    def move_random(self, direction):
+        new_arr = move_random(self.arr, direction)
+        return Board.fromarray(new_arr)
 
     def copy(self):
         return Board(self._value)
