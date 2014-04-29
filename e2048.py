@@ -105,29 +105,36 @@ def build_value(arr):
     remainder |= sorted_arr[-1]
     return remainder
 
-def requires_value(func):
-    """ Decorator: any function with this decorator, the
-    first value will be converted to a np.int64 """
 
-    @functools.wraps(func)
-    def wrapper(value_or_arr, *args, **kwargs):
-        if isinstance(value_or_arr, np.int64):
-            return func(value_or_arr, *args, **kwargs)
-        else:
-            return func(build_value(value_or_arr), *args, **kwargs)
-    return wrapper
+ACTIVATE_REQUIRES = False
+if __debug__ and ACTIVATE_REQUIRES:
+    def requires_value(func):
+        """ Decorator: any function with this decorator, the
+        first value will be converted to a np.int64 """
 
-def requires_array(func):
-    """ Decorator: any function with this decorator, the
-    first value will be converted to a 2x2 array """
+        @functools.wraps(func)
+        def wrapper(value, *args, **kwargs):
+            if not isinstance(value, np.int64):
+                raise TypeError("%s should be an np.int64" % value)
+            return func(value, *args, **kwargs)
+        return wrapper
 
-    @functools.wraps(func)
-    def wrapper(value_or_arr, *args, **kwargs):
-        if isinstance(value_or_arr, np.int64):
-            return func(build_array(value_or_arr), *args, **kwargs)
-        else:
-            return func(value_or_arr, *args, **kwargs)
-    return wrapper
+    def requires_array(func):
+        """ Decorator: any function with this decorator, the
+        first value will be converted to a 2x2 array """
+
+        @functools.wraps(func)
+        def wrapper(arr, *args, **kwargs):
+            if not isinstance(arr, np.ndarray):
+                raise TypeError("%s should be an np.int64" % arr)
+            return func(arr, *args, **kwargs)
+        return wrapper
+else:
+    def requires_value(func):
+        return func
+
+    def requires_array(func):
+        return func
 
 
 @requires_value
@@ -476,7 +483,7 @@ class GameSimulator(object):
         pass
 
 class StrategyTester(object):
-    def __init__(self, SimulatorClass, iterations = 100):
+    def __init__(self, SimulatorClass, iterations = 30):
         self.klass = SimulatorClass
         self.iterations = iterations
 
@@ -494,7 +501,7 @@ class StrategyTester(object):
             max_values.append(simulator.max_value)
         
         print
-        print "Simulator %s executed %s times" % (self.klass.__name__, self.iterations)
+        print "Simulator %s executed %s times (%s movements)" % (self.klass.__name__, self.iterations, np.array(movements).sum())
         print
         self._show_variable_summary("movements", movements)
         self._show_variable_summary("total_time", total_time)
@@ -565,7 +572,8 @@ class HumanGameSimulator(GameSimulator):
 
 
 def _main():
-    
+    pass
+
     # simulator = RandomGameSimulator(open('simulator.txt', 'w'))
     # simulator.run()
 
