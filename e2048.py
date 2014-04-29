@@ -408,12 +408,17 @@ class GameSimulator(object):
     By default it makes very few operations, but there are many
     available. """
 
-    def __init__(self, stdout = None, measuring = False):
+    def __init__(self, stdout = None, measuring = False, dont_start = False):
         self.stdout       = stdout
         self.current_arr  = initial_array()
         self.max_value    = 0
         self.measurements = []
         self.measuring    = measuring
+        self.total_time   = 0
+        self.movements    = 0
+
+        if not dont_start:
+            self.start()
 
     def start(self):
         initialize_board_random(self.current_arr)
@@ -427,7 +432,6 @@ class GameSimulator(object):
         self.print_current_state()
 
         initial_time = time.time()
-        movements = 0
 
         while can_move(self.current_arr):
             value = build_value(self.current_arr)
@@ -445,14 +449,15 @@ class GameSimulator(object):
             self.current_arr = move_random(self.current_arr, direction)
             self.max_value = self.current_arr.max()
             self.print_current_state()
-            movements += 1
+            self.movements += 1
 
         final_time = time.time()
+        self.total_time = final_time - initial_time
 
         if self.stdout:
             print >> self.stdout, "Max value: %s" % ( 2 ** self.max_value )
-            print >> self.stdout, "Total time: %.3f seconds" % (final_time - initial_time)
-            print >> self.stdout, "%s movements" % movements
+            print >> self.stdout, "Total time: %.3f seconds" % self.total_time
+            print >> self.stdout, "%s movements" % self.movements
 
     @property
     def current_value(self):
@@ -470,9 +475,63 @@ class GameSimulator(object):
         """ Override me """
         pass
 
+class StrategyTester(object):
+    def __init__(self, SimulatorClass, iterations = 100):
+        self.klass = SimulatorClass
+        self.iterations = iterations
+
+    def run(self):
+        movements  = []
+        total_time = []
+        max_values = []
+
+        for _ in xrange(self.iterations):
+            simulator = self.klass()
+            simulator.run()
+
+            movements.append(simulator.movements)
+            total_time.append(simulator.total_time)
+            max_values.append(simulator.max_value)
+        
+        print
+        print "Simulator %s executed %s times" % (self.klass.__name__, self.iterations)
+        print
+        self._show_variable_summary("movements", movements)
+        self._show_variable_summary("total_time", total_time)
+
+        max_values = np.array(max_values)
+
+        print " * Max values:"
+        print "   - max: %s (%s)" % (max_values.max(), 2 ** max_values.max() )
+        print "   - mean: %s" % max_values.mean()
+        print "   - std: %s" % max_values.std()
+        print "   - min: %s (%s)" % ( max_values.min(), 2 ** max_values.min() )
+        print
+
+    def _show_variable_summary(self, name, distribution):
+        distribution = np.array(distribution)
+
+        print " * %s:" % name.title()
+        print "   - max: %s" % distribution.max()
+        print "   - mean: %s" % distribution.mean()
+        print "   - std: %s" % distribution.std()
+        print "   - min: %s" % distribution.min()
+
+#######################################################
+# 
+# 
+#           Sample dummy simulators
+# 
+# 
+
+
 class RandomGameSimulator(GameSimulator):
     def next_direction(self):
         return random.choice(self.directions.keys())
+
+class FirstDirectionGameSimulator(GameSimulator):
+    def next_direction(self):
+        return self.directions.keys()[0]
 
 class HumanGameSimulator(GameSimulator):
     KEYS = {
@@ -503,15 +562,22 @@ class HumanGameSimulator(GameSimulator):
                 raise Exception("Finish requested by user")
 
 
+
+
 def _main():
-    simulator = RandomGameSimulator(open('simulator.txt', 'w'))
-    simulator.start()
-    simulator.run()
+    
+    # simulator = RandomGameSimulator(open('simulator.txt', 'w'))
+    # simulator.run()
 
     # game = HumanGameSimulator(open('simulator-2.txt', 'w'))
-    # game.start()
     # game.run()
 
+    tester = StrategyTester(RandomGameSimulator)
+    tester.run()
+
+#    tester = StrategyTester(FirstDirectionGameSimulator)
+#    tester.run()
 
 if __name__ == '__main__':
     _main()
+
