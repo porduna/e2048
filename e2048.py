@@ -218,6 +218,35 @@ def _only_move(arr, direction):
         raise Exception("Direction expected. Got: %s" % direction)
 
 @requires_array
+def _can_move_left(arr):
+    for row in arr:
+        a, b, c, d = row
+        # If they're all zero, forget about this row
+        if 0 == a == b == c == d:
+            continue
+
+        # If there is a zero with something on the right
+        if d:
+            if a == 0 or b == 0 or c == 0:
+                return True
+        elif c:
+            if a == 0 or b == 0:
+                return True
+        elif b:
+            if a == 0:
+                return True
+
+        # If two are equal (and not zero), it can move
+        if a == b and a != 0:
+            return True
+        if b == c and b != 0:
+            return True
+        if c == d and c != 0:
+            return True
+
+    return False 
+
+@requires_array
 def can_move_to(arr, direction):
     new_arr = _only_move(arr, direction)
     original_value = build_value(arr)
