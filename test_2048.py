@@ -1,5 +1,8 @@
+import pprint
+import cPickle as pickle
 import numpy as np
 import e2048
+from e2048 import Directions
 
 def check_building_arrays_equals(value):
     arr_built     = e2048.build_array(value)
@@ -78,47 +81,47 @@ def test_only_move():
         [ 2, 2, 2, 2 ]
     ]
 
-    expected_down = np.array([
+    expected_down = e2048._build_from_2048(np.array([
         [ 0, 0, 0, 0 ],
         [ 0, 0, 0, 0 ],
         [ 0, 0, 4, 8 ],
         [ 4, 4, 4, 4 ]
-    ])
+    ]))
 
-    yield check_only_move, initial_data, expected_down, e2048.Directions.down
+    yield check_only_move, initial_data, expected_down, Directions.down
 
-    expected_up = np.array([
+    expected_up = e2048._build_from_2048(np.array([
         [ 4, 4, 4, 8 ],
         [ 0, 0, 4, 4 ],
         [ 0, 0, 0, 0 ],
         [ 0, 0, 0, 0 ]
-    ])
+    ]))
 
-    yield check_only_move, initial_data, expected_up, e2048.Directions.up
+    yield check_only_move, initial_data, expected_up, Directions.up
 
-    expected_right = np.array([
+    expected_right = e2048._build_from_2048(np.array([
         [ 0, 0, 0, 0 ],
         [ 0, 4, 4, 8 ],
         [ 0, 0, 0, 4 ],
         [ 0, 0, 4, 4 ]
-    ])
+    ]))
 
-    yield check_only_move, initial_data, expected_right, e2048.Directions.right
+    yield check_only_move, initial_data, expected_right, Directions.right
 
-    expected_left = np.array([
+    expected_left = e2048._build_from_2048(np.array([
         [ 0, 0, 0, 0 ],
         [ 4, 4, 8, 0 ],
         [ 4, 0, 0, 0 ],
         [ 4, 4, 0, 0 ]
-    ])
+    ]))
 
-    yield check_only_move, initial_data, expected_left, e2048.Directions.left
+    yield check_only_move, initial_data, expected_left, Directions.left
 
 def check_only_move(initial_data, expected, direction):
 
-    arr = np.array(initial_data)
+    arr = e2048._build_from_2048(np.array(initial_data))
     board1 = e2048.Board.fromarray(arr)
-    board2 = e2048.Board.fromarray(np.array(initial_data))
+    board2 = e2048.Board.fromarray(e2048._build_from_2048(np.array(initial_data)))
 
     moved = e2048._only_move(arr, direction)
 
@@ -139,7 +142,7 @@ def test_can_move():
         [ 0, 0, 0, 0 ]
     ]
 
-    yield check_can_move, no, e2048.Directions.up
+    yield check_can_move, no, Directions.up
 
     no = [
         [ 0, 0, 0, 0 ],
@@ -148,7 +151,7 @@ def test_can_move():
         [ 2, 2, 2, 2 ]
     ]
 
-    yield check_can_move, no, e2048.Directions.down
+    yield check_can_move, no, Directions.down
 
     no = [
         [ 2, 0, 0, 0 ],
@@ -157,7 +160,7 @@ def test_can_move():
         [ 2, 0, 0, 0 ]
     ]
 
-    yield check_can_move, no, e2048.Directions.left
+    yield check_can_move, no, Directions.left
 
     no = [
         [ 0, 0, 0, 2 ],
@@ -166,7 +169,7 @@ def test_can_move():
         [ 0, 0, 0, 2 ]
     ]
 
-    yield check_can_move, no, e2048.Directions.right
+    yield check_can_move, no, Directions.right
 
 
 
@@ -192,6 +195,159 @@ def check_can_move(no, direction):
     assert e2048.can_move_to(yes, direction)
 
     assert not e2048.can_move_to(np.array(no), direction)
+
+def test_potential_states():
+    
+    # This can be moved up, down, left and right.
+    # In each case, there will be one 0 (and therefore, 
+    # 2 potential new states)
+    initial_data = e2048._build_from_2048(np.array([
+        [  2,  4,  8, 16 ],
+        [ 16,  8,  4,  2 ],
+        [ 32, 64,  8,  2 ],
+        [ 64, 32,  2,  2 ]
+    ]))
+
+    expected_up_2 = e2048._build_from_2048(np.array([
+        [  2,  4,  8, 16 ],
+        [ 16,  8,  4,  4 ],
+        [ 32, 64,  8,  2 ],
+        [ 64, 32,  2,  2 ]
+    ]))
+
+    expected_up_4 = e2048._build_from_2048(np.array([
+        [  2,  4,  8, 16 ],
+        [ 16,  8,  4,  4 ],
+        [ 32, 64,  8,  2 ],
+        [ 64, 32,  2,  4 ]
+    ]))
+
+    expected_down_2 = e2048._build_from_2048(np.array([
+        [  2,  4,  8,  2 ],
+        [ 16,  8,  4, 16 ],
+        [ 32, 64,  8,  2 ],
+        [ 64, 32,  2,  4 ]
+    ]))
+
+    expected_down_4 = e2048._build_from_2048(np.array([
+        [  2,  4,  8,  4 ],
+        [ 16,  8,  4, 16 ],
+        [ 32, 64,  8,  2 ],
+        [ 64, 32,  2,  4 ]
+    ]))
+
+    expected_right_2 = e2048._build_from_2048(np.array([
+        [  2,  4,  8, 16 ],
+        [ 16,  8,  4,  2 ],
+        [ 32, 64,  8,  2 ],
+        [  2, 64, 32,  4 ]
+    ]))
+
+    expected_right_4 = e2048._build_from_2048(np.array([
+        [  2,  4,  8, 16 ],
+        [ 16,  8,  4,  2 ],
+        [ 32, 64,  8,  2 ],
+        [  4, 64, 32,  4 ]
+    ]))
+
+    expected_left_2 = e2048._build_from_2048(np.array([
+        [  2,  4,  8, 16 ],
+        [ 16,  8,  4,  2 ],
+        [ 32, 64,  8,  2 ],
+        [ 64, 32,  4,  2 ]
+    ]))
+
+    expected_left_4 = e2048._build_from_2048(np.array([
+        [  2,  4,  8, 16 ],
+        [ 16,  8,  4,  2 ],
+        [ 32, 64,  8,  2 ],
+        [ 64, 32,  4,  4 ]
+    ]))
+
+    expected_potential_states = {
+        Directions.left : {
+            e2048.build_value(expected_left_2) : 0.9,
+            e2048.build_value(expected_left_4) : 0.1,
+        },
+        Directions.right : {
+            e2048.build_value(expected_right_2) : 0.9,
+            e2048.build_value(expected_right_4) : 0.1,
+        },
+        Directions.up : {
+            e2048.build_value(expected_up_2) : 0.9,
+            e2048.build_value(expected_up_4) : 0.1,
+        },
+        Directions.down : {
+            e2048.build_value(expected_down_2) : 0.9,
+            e2048.build_value(expected_down_4) : 0.1,
+        },
+    }
+
+    resulting_potential_states = e2048.potential_states(initial_data)
+    
+    assert pprint.pformat(resulting_potential_states) == pprint.pformat(expected_potential_states)
+
+    # This can be moved up, down, left and right.
+    # In each case, there will be one 0 (and therefore, 
+    # 2 potential new states)
+    initial_data = e2048._build_from_2048(np.array([
+        [  2,  4,  8, 16 ],
+        [ 16,  8,  4,  2 ],
+        [ 32, 64,  8, 16 ],
+        [ 64, 32,  2,  2 ]
+    ]))
+
+    expected_left_2 = e2048._build_from_2048(np.array([
+        [  2,  4,  8, 16 ],
+        [ 16,  8,  4,  2 ],
+        [ 32, 64,  8, 16 ],
+        [ 64, 32,  4,  2 ]
+    ]))
+
+    expected_left_4 = e2048._build_from_2048(np.array([
+        [  2,  4,  8, 16 ],
+        [ 16,  8,  4,  2 ],
+        [ 32, 64,  8, 16 ],
+        [ 64, 32,  4,  4 ]
+    ]))
+
+    expected_right_2 = e2048._build_from_2048(np.array([
+        [  2,  4,  8, 16 ],
+        [ 16,  8,  4,  2 ],
+        [ 32, 64,  8, 16 ],
+        [  2, 64, 32,  4 ]
+    ]))
+
+    expected_right_4 = e2048._build_from_2048(np.array([
+        [  2,  4,  8, 16 ],
+        [ 16,  8,  4,  2 ],
+        [ 32, 64,  8, 16 ],
+        [  4, 64, 32 , 4 ]
+    ]))
+
+    expected_potential_states = {
+        Directions.left : {
+            e2048.build_value(expected_left_2) : 0.9,
+            e2048.build_value(expected_left_4) : 0.1,
+        },
+        Directions.right : {
+            e2048.build_value(expected_right_2) : 0.9,
+            e2048.build_value(expected_right_4) : 0.1,
+        },
+    }
+
+    resulting_potential_states = e2048.potential_states(initial_data)
+    
+    assert str(pprint.pformat(resulting_potential_states)) == str(pprint.pformat(expected_potential_states))
+
+def test_initialize_board_random():
+    arr = e2048.initial_array()    
+    e2048.initialize_board_random(arr)
+    line = arr.reshape(16)
+    values = line[line > 0]
+    assert len(values) == 2
+    assert values[0] in (1, 2)
+    assert values[1] in (1, 2)
 
 def test_basic_class():
     # Constructor

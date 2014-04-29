@@ -1,4 +1,5 @@
 import sys
+import time
 import random
 import functools
 import numpy as np
@@ -31,16 +32,28 @@ its methods are provided as functions.
 LINE_POSITIONS = range(16)
 
 class Directions:
-    left  = 'left'
-    right = 'right'
-    up    = 'up'
-    down  = 'down'
+    left  = np.int8(0)
+    right = np.int8(1)
+    up    = np.int8(2)
+    down  = np.int8(3)
 
     DIRECTIONS = left, right, up, down
+
+    @staticmethod
+    def name(direction):
+        return {
+            Directions.left  : 'left',
+            Directions.right : 'right',
+            Directions.up    : 'up',
+            Directions.down  : 'down',
+        }[direction]
 
 def initial_value():
     """ Create an empty board """
     return np.int64(0)
+
+def initial_array():
+    return build_array(initial_value())
 
 def build_array(value):
     """ Given a np.int64, create a 2x2 np.array """
@@ -53,6 +66,35 @@ def build_array(value):
 
     return cur_data.reshape(4,4)
 
+_REAL_VALUES = {
+    0     : 0,
+    2     : 1,
+    4     : 2,
+    8     : 3,
+    16    : 4,
+    32    : 5,
+    64    : 6,
+    128   : 7,
+    256   : 8,
+    512   : 9,
+    1024  : 10,
+    2048  : 11,
+    4096  : 12,
+    8192  : 13,
+    16384 : 14,
+    32768 : 15,
+}
+
+def _build_from_2048(arr):
+    """ Given an array expressed in 2048 (e.g., 2, 4, 8, 16, 32, 64 ...),
+    create a real one (where values are 0-15)
+    """
+    new_list = []
+    for value in arr.reshape(16):
+        new_list.append(_REAL_VALUES[value])
+
+    return np.array(new_list, np.int8).reshape(4,4)
+
 def build_value(arr):
     """ Given a 2x2 np.array, provide a np.int64 value """
     remainder = np.int64(0)
@@ -63,36 +105,29 @@ def build_value(arr):
     remainder |= sorted_arr[-1]
     return remainder
 
-if __debug__:
-    def requires_value(func):
-        """ Decorator: any function with this decorator, the
-        first value will be converted to a np.int64 """
+def requires_value(func):
+    """ Decorator: any function with this decorator, the
+    first value will be converted to a np.int64 """
 
-        @functools.wraps(func)
-        def wrapper(value_or_arr, *args, **kwargs):
-            if isinstance(value_or_arr, np.int64):
-                return func(value_or_arr, *args, **kwargs)
-            else:
-                return func(build_value(value_or_arr), *args, **kwargs)
-        return wrapper
+    @functools.wraps(func)
+    def wrapper(value_or_arr, *args, **kwargs):
+        if isinstance(value_or_arr, np.int64):
+            return func(value_or_arr, *args, **kwargs)
+        else:
+            return func(build_value(value_or_arr), *args, **kwargs)
+    return wrapper
 
-    def requires_array(func):
-        """ Decorator: any function with this decorator, the
-        first value will be converted to a 2x2 array """
+def requires_array(func):
+    """ Decorator: any function with this decorator, the
+    first value will be converted to a 2x2 array """
 
-        @functools.wraps(func)
-        def wrapper(value_or_arr, *args, **kwargs):
-            if isinstance(value_or_arr, np.int64):
-                return func(build_array(value_or_arr), *args, **kwargs)
-            else:
-                return func(value_or_arr, *args, **kwargs)
-        return wrapper
-else:
-    def requires_value(func):
-        return func
-
-    def requires_array(func):
-        return func
+    @functools.wraps(func)
+    def wrapper(value_or_arr, *args, **kwargs):
+        if isinstance(value_or_arr, np.int64):
+            return func(build_array(value_or_arr), *args, **kwargs)
+        else:
+            return func(value_or_arr, *args, **kwargs)
+    return wrapper
 
 
 @requires_value
@@ -143,8 +178,8 @@ def _only_move_left(arr):
             counter = 0
 
             while counter < 3:
-                if row[counter] == row[counter + 1]:
-                    row[counter] *= 2
+                if row[counter] and row[counter] == row[counter + 1]:
+                    row[counter] += 1
                     row[counter + 1: 3] = row[counter + 2:]
                     row[3] = 0
                 counter += 1
@@ -165,11 +200,8 @@ def _only_move(arr, direction):
 
     elif direction == Directions.up:
         rotated_arr = np.rot90(arr, k = 1)
-        print "Original"
-        print arr
         rotated_moved_arr = _only_move_left(rotated_arr)
         moved_arr = np.rot90(rotated_moved_arr, k = 3)
-        print moved_arr
         return moved_arr
     
     elif direction == Directions.down:
@@ -227,17 +259,81 @@ def _linear_to_array(positions_lineal):
     return positions_arr
 
 @requires_array
-def move_random(arr, direction):
+def _potential_fills(arr):
+    hole_positions = _find_holes(arr, linear = True)
+    holes = {
+        # position, new_value : weight
+    }
+    for hole_position in hole_positions:
+        # 1 is 2, 2 is 4
+        holes[hole_position, 1] = 1.0 / len(hole_positions) * 0.9
+        holes[hole_position, 2] = 1.0 / len(hole_positions) * 0.1
+    return holes
+
+@requires_array
+def potential_states_to(arr, direction):
+    direction_moves = {
+        # value1 : chances
+    }
+
     moved_arr = _only_move(arr, direction)
-    positions_lineal = _find_holes(moved_arr, linear = True)
-    if len(positions_lineal) == 0:
+    if (arr == moved_arr).all():
+        # If the arrays are equal, skip
+        return
+
+    fills = _potential_fills(moved_arr)
+    for (position, new_value), chances in fills.items():
+        new_arr = np.copy(moved_arr)
+        new_arr[position / 4, position % 4] = new_value
+        cur_value = build_value(new_arr)
+        direction_moves[cur_value] = chances
+
+    return direction_moves
+
+
+@requires_array
+def potential_states(arr):
+    all_potential_moves = {
+        # Directions.left : {
+        #      all the potential new states when left is selected:
+        # 
+        #      value1 : chances,
+        #      value2 : chances,
+        #      value3 : chances,
+        # 
+        #      e.g.,
+        #      0x0010 : 0.75, 
+        # }
+    }
+
+    for direction in Directions.DIRECTIONS:
+        direction_moves = potential_states_to(arr, direction)
+        if direction_moves:
+            all_potential_moves[direction] = direction_moves
+
+    return all_potential_moves
+
+@requires_array
+def _fill_random(arr):
+    positions_fills = _potential_fills(arr)
+    if not positions_fills:
         raise Exception("Couldn't move there")
 
-    new_position = np.random.choice(positions_lineal)
+    position = np.random.choice(range(len(positions_fills.keys())), p = positions_fills.values())
 
-    new_value = 1 if random.random() < 0.9 else 2
-    
-    moved_arr[new_position / 4, new_position % 4] = new_value
+    new_position, new_value = positions_fills.keys()[position]
+
+    arr[new_position / 4, new_position % 4] = new_value
+
+@requires_array
+def initialize_board_random(arr):
+    _fill_random(arr)
+    _fill_random(arr)
+
+@requires_array
+def move_random(arr, direction):
+    moved_arr = _only_move(arr, direction)
+    _fill_random(moved_arr)
     return moved_arr
 
 ###############################################################################
@@ -298,3 +394,124 @@ class Board(object):
     def pretty_print(self, *args, **kwargs):
         return board_print(self.value, output = None, *args, **kwargs)
 
+
+######################################################
+# 
+# 
+#                  Simulator
+# 
+
+class GameSimulator(object):
+    """ Subclass this class to have a simulator. 
+    You can either subclass the next_direction() method
+    or the nextBoard(board) method, depending on your constraints.
+    By default it makes very few operations, but there are many
+    available. """
+
+    def __init__(self, stdout = None, measuring = False):
+        self.stdout       = stdout
+        self.current_arr  = initial_array()
+        self.max_value    = 0
+        self.measurements = []
+        self.measuring    = measuring
+
+    def start(self):
+        initialize_board_random(self.current_arr)
+
+    def print_current_state(self):
+        if self.stdout:
+            print >> self.stdout, self.current_board
+
+    def run(self):
+        self.max_value = self.current_arr.max()
+        self.print_current_state()
+
+        initial_time = time.time()
+        movements = 0
+
+        while can_move(self.current_arr):
+            value = build_value(self.current_arr)
+            if self.measuring:
+                before = time.time()
+            direction = self.next_direction()
+            if self.measuring:
+                after = time.time()
+                self.measurements.append( (after - before) )
+
+            if self.stdout:
+                print >> self.stdout
+                print >> self.stdout, "    Moving to %s" % Directions.name(direction)
+                print >> self.stdout
+            self.current_arr = move_random(self.current_arr, direction)
+            self.max_value = self.current_arr.max()
+            self.print_current_state()
+            movements += 1
+
+        final_time = time.time()
+
+        if self.stdout:
+            print >> self.stdout, "Max value: %s" % ( 2 ** self.max_value )
+            print >> self.stdout, "Total time: %.3f seconds" % (final_time - initial_time)
+            print >> self.stdout, "%s movements" % movements
+
+    @property
+    def current_value(self):
+        return build_value(self.current_arr)
+
+    @property
+    def current_board(self):
+        return Board.fromarray(self.current_arr)
+
+    @property
+    def directions(self):
+        return potential_states(self.current_arr)
+
+    def next_direction(self):
+        """ Override me """
+        pass
+
+class RandomGameSimulator(GameSimulator):
+    def next_direction(self):
+        return random.choice(self.directions.keys())
+
+class HumanGameSimulator(GameSimulator):
+    KEYS = {
+            'w' : Directions.up,
+            's' : Directions.down,
+            'a' : Directions.left,
+            'd' : Directions.right,
+        }
+
+    def start(self):
+        print "Play with 'w', 'a', 's', 'd'. Exit with 'e' or 'q'"
+        return super(HumanGameSimulator, self).start()
+
+    def next_direction(self):
+        # pip install py-getch
+        import getch
+        while True:
+            from getch.getch import getch
+            
+            if self.stdout != sys.stdout:
+                print self.current_board
+
+            where = getch()
+            if where in HumanGameSimulator.KEYS:
+                return HumanGameSimulator.KEYS[where]
+
+            if where in ('e','q'):
+                raise Exception("Finish requested by user")
+
+
+def _main():
+    simulator = RandomGameSimulator(open('simulator.txt', 'w'))
+    simulator.start()
+    simulator.run()
+
+    # game = HumanGameSimulator(open('simulator-2.txt', 'w'))
+    # game.start()
+    # game.run()
+
+
+if __name__ == '__main__':
+    _main()
