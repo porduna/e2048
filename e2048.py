@@ -90,7 +90,7 @@ def _build_from_2048(arr):
     create a real one (where values are 0-15)
     """
     new_list = []
-    for value in arr.reshape(16):
+    for value in arr.flat:
         new_list.append(_REAL_VALUES[value])
 
     return np.array(new_list, np.int8).reshape(4,4)
@@ -98,13 +98,12 @@ def _build_from_2048(arr):
 def build_value(arr):
     """ Given a 2x2 np.array, provide a np.int64 value """
     remainder = np.int64(0)
-    sorted_arr = arr.reshape(16)[::-1]
+    sorted_arr = arr.flat[::-1]
     for value in sorted_arr[:15]:
         remainder |= value
         remainder <<= 4
     remainder |= sorted_arr[-1]
     return remainder
-
 
 ACTIVATE_REQUIRES = False
 if __debug__ and ACTIVATE_REQUIRES:
@@ -251,30 +250,19 @@ def can_move(arr):
 
 @requires_array
 def _find_holes(arr, linear = False):
-    positions_lineal = np.where(arr.reshape(16) == 0)[0]
-    if linear:
-        return positions_lineal
-
-    return _linear_to_array(positions_lineal)
-
-def _linear_to_array(positions_lineal):
-    positions_arr = []
-    for position_lineal in positions_lineal:
-        row = position_lineal / 4
-        col = position_lineal % 4
-        positions_arr.append((row, col))
-    return positions_arr
+    return zip(*np.where(arr == 0))
 
 @requires_array
 def _potential_fills(arr):
-    hole_positions = _find_holes(arr, linear = True)
+    hole_positions = zip(*np.where(arr == 0))
     holes = {
         # position, new_value : weight
     }
     for hole_position in hole_positions:
+        hashable_position = tuple(hole_position)
         # 1 is 2, 2 is 4
-        holes[hole_position, 1] = 1.0 / len(hole_positions) * 0.9
-        holes[hole_position, 2] = 1.0 / len(hole_positions) * 0.1
+        holes[hashable_position, 1] = 1.0 / len(hole_positions) * 0.9
+        holes[hashable_position, 2] = 1.0 / len(hole_positions) * 0.1
     return holes
 
 @requires_array
@@ -291,7 +279,7 @@ def potential_states_to(arr, direction):
     fills = _potential_fills(moved_arr)
     for (position, new_value), chances in fills.items():
         new_arr = np.copy(moved_arr)
-        new_arr[position / 4, position % 4] = new_value
+        new_arr[position] = new_value
         cur_value = build_value(new_arr)
         direction_moves[cur_value] = chances
 
@@ -330,7 +318,7 @@ def _fill_random(arr):
 
     new_position, new_value = positions_fills.keys()[position]
 
-    arr[new_position / 4, new_position % 4] = new_value
+    arr[new_position] = new_value
 
 @requires_array
 def initialize_board_random(arr):
@@ -580,8 +568,8 @@ def _main():
     # game = HumanGameSimulator(open('simulator-2.txt', 'w'))
     # game.run()
 
-    tester = StrategyTester(RandomGameSimulator)
-    tester.run()
+#    tester = StrategyTester(RandomGameSimulator)
+#    tester.run()
 
 #    tester = StrategyTester(FirstDirectionGameSimulator)
 #    tester.run()

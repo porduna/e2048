@@ -28,13 +28,6 @@ def test_print():
                        "   _    _    _    _ \n"
                        "   _    _    _    _ \n")
 
-    value = np.int64(0x03)
-    result = e2048.board_print(e2048.build_array(value))
-    assert result == ( "   8    _    _    _ \n" 
-                       "   _    _    _    _ \n"
-                       "   _    _    _    _ \n"
-                       "   _    _    _    _ \n")
-
     result = e2048.board_print(value, before = '>>> ')
     assert result == ( ">>>    8    _    _    _ \n" 
                        ">>>    _    _    _    _ \n"
@@ -54,23 +47,16 @@ def test_find_holes():
     # Positions not empty: 0, 2, 6, 8, 10, 11
     arr = e2048.build_array(value)
     holes = e2048._find_holes(arr)
-    expected_positions = [
+    expected_positions = np.array([
                     (0, 1),         (0, 3), 
             (1, 0), (1, 1),         (1, 3), 
                     (2, 1), 
-            (3, 0), (3, 1), (3, 2), (3, 3)]
-    assert expected_positions == list(holes)
+            (3, 0), (3, 1), (3, 2), (3, 3)])
+    assert (expected_positions == holes).all()
 
     for hole in holes:
         assert arr[hole] == 0
 
-    holes = e2048._find_holes(arr, linear = True)
-    expected_positions = [
-                    1,         3, 
-            4,      5,         7, 
-                    9, 
-           12,     13,   14,  15]
-    assert expected_positions == list(holes)
 
 def test_only_move():
 
