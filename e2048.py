@@ -217,41 +217,101 @@ def _only_move(arr, direction):
     else:
         raise Exception("Direction expected. Got: %s" % direction)
 
-@requires_array
-def _can_move_left(arr):
-    for row in arr:
-        a, b, c, d = row
-        # If they're all zero, forget about this row
-        if 0 == a == b == c == d:
-            continue
 
-        # If there is a zero with something on the right
-        if d:
-            if a == 0 or b == 0 or c == 0:
-                return True
-        elif c:
-            if a == 0 or b == 0:
-                return True
-        elif b:
-            if a == 0:
-                return True
-
-        # If two are equal (and not zero), it can move
-        if a == b and a != 0:
-            return True
-        if b == c and b != 0:
-            return True
-        if c == d and c != 0:
-            return True
-
-    return False 
+# 
+# The following "can move" is long in code, but still efficient
+# (compared to structures / indexing according to the profiler)
+# 
 
 @requires_array
 def can_move_to(arr, direction):
-    new_arr = _only_move(arr, direction)
-    original_value = build_value(arr)
-    new_value = build_value(new_arr)
-    return new_value != original_value
+    if direction == Directions.left:
+
+        for row in arr:
+            a, b, c, d = row
+            # If they're all zero, forget about this row
+            if 0 == a == b == c == d:
+                continue
+
+            # If there is a zero with something on the right
+            if d:
+                if d == c or a == 0 or b == 0 or c == 0:
+                    return True
+            elif c:
+                if c == b or a == 0 or b == 0:
+                    return True
+            elif b:
+                if b == a or a == 0:
+                    return True
+
+        return False 
+
+    if direction == Directions.right:
+
+        for row in arr:
+            a, b, c, d = row
+            # If they're all zero, forget about this row
+            if 0 == a == b == c == d:
+                continue
+
+            # If there is a zero with something on the right
+            if a:
+                if a == b or b == 0 or c == 0 or d == 0:
+                    return True
+            elif b:
+                if b == c or c == 0 or d == 0:
+                    return True
+            elif c:
+                if c == d or d == 0:
+                    return True
+
+        return False 
+
+    if direction == Directions.up:
+
+        for i in 0,1,2,3:
+            col = arr[:,i]
+            a, b, c, d = col
+            # If they're all zero, forget about this row
+            if 0 == a == b == c == d:
+                continue
+
+            # If they're equal or there is a zero below
+            if d:
+                if d == c or a == 0 or b == 0 or c == 0:
+                    return True
+            elif c:
+                if c == b or a == 0 or b == 0:
+                    return True
+            elif b:
+                if b == a or a == 0:
+                    return True
+
+        return False 
+
+    if direction == Directions.down:
+
+        for i in 0,1,2,3:
+            col = arr[:,i]
+            a, b, c, d = col
+            # If they're all zero, forget about this row
+            if 0 == a == b == c == d:
+                continue
+
+            # If there is a zero with something on the right
+            if a:
+                if a == b or b == 0 or c == 0 or d == 0:
+                    return True
+            elif b:
+                if b == c or c == 0 or d == 0:
+                    return True
+            elif c:
+                if c == d or d == 0:
+                    return True
+
+        return False 
+
+    raise Exception("Invalid direction")
 
 @requires_array
 def potential_directions(arr):
@@ -384,7 +444,8 @@ class Board(object):
             return can_move(self.arr)
         else:
             return can_move_to(self.arr, direction)
-
+    
+    @property
     def potential_directions(self):
         return potential_directions(self.arr)
 
@@ -492,7 +553,11 @@ class GameSimulator(object):
         return Board.fromarray(self.current_arr)
 
     @property
-    def directions(self):
+    def potential_directions(self):
+        return potential_directions(self.current_arr)
+
+    @property
+    def potential_states(self):
         return potential_states(self.current_arr)
 
     def next_direction(self):
@@ -500,7 +565,7 @@ class GameSimulator(object):
         pass
 
 class StrategyTester(object):
-    def __init__(self, SimulatorClass, iterations = 30):
+    def __init__(self, SimulatorClass, iterations = 1000):
         self.klass = SimulatorClass
         self.iterations = iterations
 
@@ -509,6 +574,7 @@ class StrategyTester(object):
         total_time = []
         max_values = []
 
+        initial_time = time.time()
         for _ in xrange(self.iterations):
             simulator = self.klass()
             simulator.run()
@@ -516,9 +582,12 @@ class StrategyTester(object):
             movements.append(simulator.movements)
             total_time.append(simulator.total_time)
             max_values.append(simulator.max_value)
+        end_time = time.time()
+
+        total_time_all_iterations = end_time - initial_time
         
         print
-        print "Simulator %s executed %s times (%s movements)" % (self.klass.__name__, self.iterations, np.array(movements).sum())
+        print "Simulator %s executed %s times (%s movements) in %.2f seconds " % (self.klass.__name__, self.iterations, np.array(movements).sum(), total_time_all_iterations)
         print
         self._show_variable_summary("movements", movements)
         self._show_variable_summary("total_time", total_time)
@@ -551,11 +620,11 @@ class StrategyTester(object):
 
 class RandomGameSimulator(GameSimulator):
     def next_direction(self):
-        return random.choice(self.directions.keys())
+        return random.choice(self.potential_directions)
 
 class FirstDirectionGameSimulator(GameSimulator):
     def next_direction(self):
-        return self.directions.keys()[0]
+        return self.potential_directions[0]
 
 class HumanGameSimulator(GameSimulator):
     KEYS = {
@@ -597,8 +666,8 @@ def _main():
     # game = HumanGameSimulator(open('simulator-2.txt', 'w'))
     # game.run()
 
-#    tester = StrategyTester(RandomGameSimulator)
-#    tester.run()
+    tester = StrategyTester(RandomGameSimulator)
+    tester.run()
 
 #    tester = StrategyTester(FirstDirectionGameSimulator)
 #    tester.run()
