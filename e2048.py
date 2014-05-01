@@ -486,7 +486,7 @@ class Board(object):
 #                  Simulator
 # 
 
-class GameSimulator(object):
+class GameStrategy(object):
     """ Subclass this class to have a simulator. 
     You can either subclass the next_direction() method
     or the nextBoard(board) method, depending on your constraints.
@@ -507,6 +507,10 @@ class GameSimulator(object):
 
     def start(self):
         initialize_board_random(self.current_arr)
+        self.initialize()
+
+    def initialize(self):
+        pass
 
     def print_current_state(self):
         if self.stdout:
@@ -564,7 +568,60 @@ class GameSimulator(object):
         """ Override me """
         pass
 
-class StrategyTester(object):
+
+#
+# 
+# 
+#           Sample dummy strategies
+# 
+# 
+
+
+class RandomGameStrategy(GameStrategy):
+    def next_direction(self):
+        return random.choice(self.potential_directions)
+
+class FirstDirectionGameStrategy(GameStrategy):
+    def next_direction(self):
+        return self.potential_directions[0]
+
+class HumanGameStrategy(GameStrategy):
+    KEYS = {
+            'w' : Directions.up,
+            's' : Directions.down,
+            'a' : Directions.left,
+            'd' : Directions.right,
+        }
+
+    def initialize(self):
+        print "Play with 'w', 'a', 's', 'd'. Exit with 'e' or 'q'"
+
+    def next_direction(self):
+        # pip install py-getch
+        import getch
+        while True:
+            from getch.getch import getch
+            
+            if self.stdout != sys.stdout:
+                print self.current_board
+
+            where = getch()
+            if where in HumanGameStrategy.KEYS:
+                return HumanGameStrategy.KEYS[where]
+
+            if where in ('e','q'):
+                raise Exception("Finish requested by user")
+
+
+#################################################################
+# 
+# 
+#     Strategy Runner
+# 
+# 
+# 
+
+class StrategyRunner(object):
     def __init__(self, SimulatorClass, iterations = 1000):
         self.klass = SimulatorClass
         self.iterations = iterations
@@ -610,66 +667,147 @@ class StrategyTester(object):
         print "   - std: %s" % distribution.std()
         print "   - min: %s" % distribution.min()
 
-#######################################################
-# 
-# 
-#           Sample dummy simulators
-# 
-# 
 
+class FutureCalculator(object):
 
-class RandomGameSimulator(GameSimulator):
-    def next_direction(self):
-        return random.choice(self.potential_directions)
+    """ Given a board and a number of steps, calculate ahead all the 
+    potential combinations. 
+    
+    This class has its own stored step, so you
+    should keep it and call the next_step(direction) method so discards
+    the other possibilities and calculates the next step, without 
+    re-calculating all the intermediate possibilities.
+    
+    It also makes it possible to provide a function and evaluate it on
+    the last leafs of the tree.
+    """
+    def __init__(self, board, steps, initial = 0, max_value = 16):
+        # Basic variables
+        self.board     = board
+        self.size      = size
+        self.max_value = max_value
 
-class FirstDirectionGameSimulator(GameSimulator):
-    def next_direction(self):
-        return self.potential_directions[0]
-
-class HumanGameSimulator(GameSimulator):
-    KEYS = {
-            'w' : Directions.up,
-            's' : Directions.down,
-            'a' : Directions.left,
-            'd' : Directions.right,
+        # Structures:
+        #   
+        #   Recursive structure that stores all the possibilities. Whenever a new step
+        #   is done, the tree becomes one of its branches (e.g., self._tree = self._tree[dir]),
+        #   and on top of the new tree, a new generation is calculated.
+        # 
+        self._tree = {
+            # direction1 : {
+            #    value1 : {
+            #        'p' : 0.9, # or 0.1: local probability,
+            #        'f' : False, # finished or not (e.g., when running "next", do not go through
+            #                     # this branch)
+            #        direction1 : {
+            #        }
+            #    },
+            # } 
         }
 
-    def start(self):
-        print "Play with 'w', 'a', 's', 'd'. Exit with 'e' or 'q'"
-        return super(HumanGameSimulator, self).start()
+        # Cache: 
+        #   
+        #   Many positions are repeated. For instance if you move left and then right
+        #   or you move right and then left, you will get the same structure. So as 
+        #   to avoid recalculating them, they are all stored here, indexed first by the
+        #   summatory of all the values which are inside the board. This way, whenever
+        #   all the leafs have passed a new value, all the previous values can be removed
+        #   from this cache. If they're present in the tree they will obviously be 
+        #   kept, but if they're not, that memory will automatically be restored.
+        #   
+        #   While the leafs will typically have a similar values, the random of being
+        #   2 or 4 makes this impossible. However, the cache shouldn't be too big given
+        #   that most of its structures are already in the tree.
+        #   
+        self._cache = {
+            # summatory : {
+            #     board_value1 : complete_subtree,
+            #     board_value2 : complete_subtree,
+            #     board_value3 : complete_subtree,
+            # }
+        }
 
-    def next_direction(self):
-        # pip install py-getch
-        import getch
-        while True:
-            from getch.getch import getch
-            
-            if self.stdout != sys.stdout:
-                print self.current_board
+    def next_step(self, direction):
+        """ Moves the internal iterator one step forward. """
+        pass
 
-            where = getch()
-            if where in HumanGameSimulator.KEYS:
-                return HumanGameSimulator.KEYS[where]
+    def evaluate(self, func, summary = None):
+        """ Walk through the leafs of the tree, running func(value). It returns a dictionary
+        in the following form:
 
-            if where in ('e','q'):
-                raise Exception("Finish requested by user")
+        {
+            direction1 : {
+                'finished' : {
+                    value1: probabilities (e.g., 0.3),
+                    value2: probabilities (e.g., 0.2),
+                },
+                'running' : {
+                    # value1 or value2 are the values returned by func
+                    value1 : probabilities (e.g., 0.3),
+                    value2 : probabilities (e.g., 0.2),
+                }
+            },
+            direction 2: {
+                # Same
+            },
+        }
 
+        If "summary" is a number, then this value is returned:
 
+        {
+            direction1 : {
+                0: probabilities (e.g., 0.3),
+                1: probabilities (e.g., 0.2),
+            },
+            direction 2: {
+                # Same
+            },
+        }
 
+        Where 0 means "sum of all the possibilities < value" and 1 means > value.
+
+        Note: the constructor of FutureCalculator has a "max_value", which defaults to 16 which
+        is impossible to achieve. If you set it to 11 (i.e., 2048), whenever a board achieves this
+        point it becomes "finished". Otherwise, FutureCalculator will not consider one game finished
+        until it has achieved the condition where it can't be moved, regardless value achieved.
+        """
+        evaluation = {}
+
+        # Magic ;-)
+
+        if summary:
+            return self.summarize(evaluation, summary)
+        else:
+            return evaluation
+
+    def summarize(self, evaluation, min_value):
+        """ Given the result of evaluate(), sum all the information to obtain the following structure: 
+{
+            direction1 : {
+                0: probabilities (e.g., 0.3),
+                1: probabilities (e.g., 0.2),
+            },
+            direction 2: {
+                # Same
+            },
+        }
+
+        Where 0 means "sum of all the possibilities < value" and 1 means > value.
+        """
 
 def _main():
     pass
 
-    # simulator = RandomGameSimulator(open('simulator.txt', 'w'))
+    # simulator = RandomGameStrategy(open('simulator.txt', 'w'))
     # simulator.run()
 
-    # game = HumanGameSimulator(open('simulator-2.txt', 'w'))
-    # game.run()
+#    game = HumanGameStrategy(open('simulator-2.txt', 'w'))
+#    game.run()
 
-    tester = StrategyTester(RandomGameSimulator)
+    tester = StrategyRunner(RandomGameStrategy)
     tester.run()
 
-#    tester = StrategyTester(FirstDirectionGameSimulator)
+#    tester = StrategyRunner(FirstDirectionGameStrategy)
 #    tester.run()
 
 if __name__ == '__main__':
